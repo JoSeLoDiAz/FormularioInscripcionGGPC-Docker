@@ -1,0 +1,46 @@
+body {
+  overflow-x: hidden;
+}
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #000000;
+  border-radius:  20px;
+}
+:root {
+  --sena-blue: #00324d;
+  --sena-green: #39a900;
+  --betowa-purple: #6c29b3;
+  --betowa-gradient: linear-gradient(135deg, #00324d 0%, #6c29b3 100%);
+  --glass-bg: rgba(255, 255, 255, 0.9);
+  --glass-border: rgba(255, 255, 255, 0.2);
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--betowa-gradient);
+  background-attachment: fixed;
+  min-height: 100vh;
+  color: #2d3436;
+}
+
+/* Clase para tarjetas modernas tipo Glass */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+/* Transiciones de página */
+.page-enter-active, .page-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.page-enter-from, .page-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
