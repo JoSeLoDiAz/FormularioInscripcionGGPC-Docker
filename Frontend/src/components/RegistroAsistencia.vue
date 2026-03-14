@@ -92,11 +92,13 @@
                     <div><strong>Horario:</strong> 2:30 a 4:30 PM</div>
                     <div><strong>Tipo de asistencia:</strong> Presencial Híbrido</div>
                     <div>
-                      <strong>Dirección presencial:</strong> Cra 30 #15-53 · SENA - Centro Nacional de Hotelería, Turismo y Alimentos - Regional Distrito Capital
+                      <strong>Dirección presencial:</strong> Cra 30 #15-53 · SENA - Centro Nacional de Hotelería,
+                      Turismo y Alimentos - Regional Distrito Capital
                     </div>
                     <div>
                       <strong>Enlace virtual:</strong>
-                      <a :href="virtualLink" target="_blank" class="link-primary text-decoration-none">Microsoft Teams</a>
+                      <a :href="virtualLink" target="_blank" class="link-primary text-decoration-none">Microsoft
+                        Teams</a>
                     </div>
                   </div>
 
@@ -220,8 +222,8 @@
                         </label>
                         <select class="form-select" v-model="form.tipoId" required>
                           <option value="" disabled>Seleccione…</option>
-                          <option v-for="t in tipoDocPersona" :key="t._id" :value="t._id">
-                            {{ t.nombre.toUpperCase() }}
+                          <option v-for="t in tipoDocPersona" :key="t.TIPODOCUMENTOID" :value="t.TIPODOCUMENTOID">
+                            {{ (t.NOMBRE || "").toUpperCase() }}
                           </option>
                         </select>
                         <div class="invalid-feedback">Campo obligatorio.</div>
@@ -350,8 +352,8 @@
                             <select class="form-select" v-model="form.empresaTipoId" @change="onEmpresaTipoChange"
                               required>
                               <option value="" disabled>Seleccione…</option>
-                              <option v-for="t in tipoDocEmpresa" :key="t._id" :value="t._id">
-                                {{ t.nombre.toUpperCase() }}
+                              <option v-for="t in tipoDocEmpresa" :key="t.TIPODOCUMENTOID" :value="t.TIPODOCUMENTOID">
+                                {{ (t.NOMBRE || "").toUpperCase() }}
                               </option>
                             </select>
                             <div class="invalid-feedback">Campo obligatorio.</div>
@@ -453,7 +455,8 @@
 
             <div class="confirm-card" v-if="form.asistenciaPresencial === 1">
               <div class="confirm-label">Asistencia presencial</div>
-              <div class="confirm-value">SENA - Centro Nacional de Hotelería, Turismo y Alimentos - Regional Distrito Capital</div>
+              <div class="confirm-value">SENA - Centro Nacional de Hotelería, Turismo y Alimentos - Regional Distrito
+                Capital</div>
               <div class="confirm-mini">Cra 30 #15-53</div>
             </div>
 
@@ -658,14 +661,32 @@ onMounted(async () => {
   }, 80);
 
   try {
-    let [persona, empresa, deps, cids, tamanos] = await Promise.all([
+    const results = await Promise.allSettled([
       useTipoDocumento.buscarTipoDocumento(0),
       useTipoDocumento.buscarTipoDocumento(1),
       useDepartamentos.buscarDepartamento(),
       useCiudad.buscarCiudad(),
-      tamanoEmpresaStore.buscarTamanoEmpresa(), // ✅ nombre correcto
+      tamanoEmpresaStore.buscarTamanoEmpresa(),
       preloadImage(logoFce),
     ]);
+
+    const persona = results[0].status === "fulfilled" ? results[0].value : [];
+    const empresa = results[1].status === "fulfilled" ? results[1].value : [];
+    const deps = results[2].status === "fulfilled" ? results[2].value : [];
+    const cids = results[3].status === "fulfilled" ? results[3].value : [];
+    const tamanos = results[4].status === "fulfilled" ? results[4].value : [];
+
+    tipoDocPersona.value = persona || [];
+    tipoDocEmpresa.value = empresa || [];
+    departamentos.value = deps || [];
+    ciudades.value = cids || [];
+    tamanosEmpresa.value = Array.isArray(tamanos) ? tamanos : [];
+
+    results.forEach((r, i) => {
+      if (r.status === "rejected") {
+        console.error(`Carga inicial falló en índice ${i}:`, r.reason);
+      }
+    });
 
     tamanosEmpresa.value = Array.isArray(tamanos) ? tamanos : [];
     tipoDocPersona.value = persona || [];
@@ -809,7 +830,7 @@ async function BuscarNumIdentificacion() {
   const res = await useDatosBasicos.buscarDatosBasicosNumIdentificacion(form.numeroId);
 
   id.value = res._id;
-  form.tipoId = res.tipodocumento?._id || res.tipodocumento;
+  form.tipoId = res.tipodocumento?.TIPODOCUMENTOID || res.tipodocumento;
   form.numeroId = res.numeroidentificacion;
   form.nombres = res.nombres;
   form.primerApellido = res.primerapellido || "";
@@ -1518,6 +1539,7 @@ onUnmounted(() => {
     width: 100%;
   }
 }
+
 /* Se ve “Tipo Título”, pero el valor real NO cambia */
 .capitalize {
   text-transform: capitalize;

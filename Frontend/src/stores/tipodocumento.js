@@ -18,8 +18,7 @@ export const useTipoDocumentoStore = defineStore(
         }
 
         const { data } = await axios.get(url);
-        const lista = data.data ?? [];
-        return [...lista];
+        return Array.isArray(data.data) ? data.data : [];
       } catch (error) {
         console.error("Error buscando tipos documento:", error);
         return [];
@@ -33,6 +32,9 @@ export const useTipoDocumentoStore = defineStore(
       try {
         const { data } = await axios.get(`${direccion}/tipodocumento/${id}`);
         return data;
+      } catch (error) {
+        console.error("Error buscando tipo documento por id:", error);
+        return null;
       } finally {
         cargando.value = false;
       }

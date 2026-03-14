@@ -1,6 +1,5 @@
 import cors from "cors";
 import express from "express";
-import mongoose from "mongoose";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -18,17 +17,9 @@ const __dirname = path.dirname(__filename);
 class Server {
     constructor() {
         this.app = express();
-        this.conectarDB();
         this.middlewares();
         this.routes();
         this.frontend();
-    }
-
-    conectarDB() {
-        mongoose
-            .connect(process.env.bdMongo)
-            .then(() => console.log("conectado a la base de datos"))
-            .catch(console.error);
     }
 
     middlewares() {
@@ -43,9 +34,10 @@ class Server {
             res.status(200).json({
                 status: "ok",
                 uptime: process.uptime(),
-                timestamp: Date.now()
+                timestamp: Date.now(),
             });
         });
+
         this.app.use("/datosbasicos", datosbasicos);
         this.app.use("/departamento", departamento);
         this.app.use("/ciudad", ciudad);
@@ -57,9 +49,7 @@ class Server {
 
     frontend() {
         this.app.use((req, res) => {
-            res.sendFile(
-                path.join(__dirname, '..', 'public', 'index.html')
-            );
+            res.sendFile(path.join(__dirname, "..", "public", "index.html"));
         });
     }
 

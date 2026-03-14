@@ -1,4 +1,17 @@
 services:
+  oracle:
+    image: gvenzl/oracle-xe:21-slim
+    container_name: oracle-xe
+    restart: unless-stopped
+    environment:
+      ORACLE_PASSWORD: SepBD2026
+    ports:
+      - "1521:1521"
+    volumes:
+      - oracle_data:/opt/oracle/oradata
+    networks:
+      - appnet
+
   backend:
     build:
       context: ./Backend
@@ -7,6 +20,8 @@ services:
     env_file:
       - ./Backend/.env
     restart: unless-stopped
+    depends_on:
+      - oracle
     networks:
       - appnet
 
@@ -36,3 +51,8 @@ services:
 networks:
   appnet:
     driver: bridge
+
+volumes:
+  oracle_data:
+    external: true
+    name: oracle-xe-data

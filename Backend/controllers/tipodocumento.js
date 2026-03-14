@@ -1,4 +1,13 @@
-import TipoDocumento from "../models/tipodocumento.js";
+import {
+  createManyTipoDocumento,
+  createTipoDocumento,
+  deleteTipoDocumento as deleteTipoDocumentoRepo,
+  findAllTipoDocumento,
+  findCodigosExistentes,
+  findTipoDocumentoByCodigo,
+  findTipoDocumentoById,
+  updateTipoDocumento,
+} from "../repositories/tipodocumento.js";
 
 const normalize = (d) => ({
   codigo: Number(d.codigo),
@@ -6,82 +15,108 @@ const normalize = (d) => ({
   documentoempresa: Number(d.documentoempresa), // 0 persona, 1 empresa
 });
 
+const isUniqueConstraintError = (error) => {
+  return error?.errorNum === 1 || error?.code === "ORA-00001";
+};
+
 export const postTipoDocumento = async (req, res) => {
   try {
     const payload = req.body;
 
-    // MASIVO (array)
+    // MASIVO
     if (Array.isArray(payload)) {
       const normalized = payload.map(normalize);
-
       const codigos = normalized.map((x) => x.codigo);
 
-      // duplicados dentro del envío
       if (new Set(codigos).size !== codigos.length) {
-        return res.status(400).json({ msg: "Hay códigos duplicados dentro del envío." });
+        return res.status(400).json({
+          msg: "Hay códigos duplicados dentro del envío.",
+        });
       }
 
-      // duplicados contra BD
-      const existentes = await TipoDocumento.find(
-        { codigo: { $in: codigos } },
-        { codigo: 1 }
-      ).lean();
+      const existentes = await findCodigosExistentes(codigos);
 
       if (existentes.length > 0) {
         return res.status(409).json({
           msg: "Algunos códigos ya existen en la base de datos.",
-          codigosDuplicados: existentes.map((a) => a.codigo),
+          codigosDuplicados: existentes,
         });
       }
 
-      const insertados = await TipoDocumento.insertMany(normalized, { ordered: false });
+      const total = await createManyTipoDocumento(normalized);
 
       return res.status(201).json({
         msg: "Tipos de documento insertados correctamente",
-        total: insertados.length,
+        total,
       });
     }
 
-    // INDIVIDUAL (objeto)
+    // INDIVIDUAL
     const data = normalize(payload);
 
-    const existe = await TipoDocumento.findOne({ codigo: data.codigo }).lean();
+    const existe = await findTipoDocumentoByCodigo(data.codigo);
+
     if (existe) {
-      return res.status(409).json({ msg: "El código ya se encuentra registrado." });
+      return res.status(409).json({
+        msg: "El código ya se encuentra registrado.",
+      });
     }
 
-    const creado = await TipoDocumento.create(data);
+    const id = await createTipoDocumento(data);
+    const creado = await findTipoDocumentoById(id);
+
     return res.status(201).json(creado);
-
   } catch (error) {
-    if (error?.code === 11000) {
-      return res.status(409).json({ msg: "Código duplicado.", error: error.message });
+    console.error("postTipoDocumento:", error);
+
+    if (isUniqueConstraintError(error)) {
+      return res.status(409).json({
+        msg: "Código duplicado.",
+        error: error.message,
+      });
     }
-    return res.status(500).json({ msg: "Error interno del servidor", error: error.message });
+
+    return res.status(500).json({
+      msg: "Error interno del servidor",
+      error: error.message,
+    });
   }
 };
 
 export const getTipoDocumento = async (req, res) => {
   try {
-    const filtro = {};
-    if (req.query.documentoempresa !== undefined) {
-      filtro.documentoempresa = Number(req.query.documentoempresa);
-    }
-    const data = await TipoDocumento.find(filtro).sort({ codigo: 1 }).lean();
+    const { documentoempresa } = req.query;
+    const data = await findAllTipoDocumento(documentoempresa);
+
     return res.json({ data });
   } catch (error) {
-    return res.status(500).json({ msg: "No se puede buscar el Tipo de Documento", error: error.message });
+    console.error("getTipoDocumento:", error);
+
+    return res.status(500).json({
+      msg: "No se puede buscar el Tipo de Documento",
+      error: error.message,
+    });
   }
 };
 
 export const getTipoDocumentoId = async (req, res) => {
   try {
     const { id } = req.params;
-    const item = await TipoDocumento.findById(id).lean();
-    if (!item) return res.status(404).json({ msg: `Sin coincidencias para ${id}` });
+    const item = await findTipoDocumentoById(id);
+
+    if (!item) {
+      return res.status(404).json({
+        msg: `Sin coincidencias para ${id}`,
+      });
+    }
+
     return res.json(item);
   } catch (error) {
-    return res.status(400).json({ error: error.message });
+    console.error("getTipoDocumentoId:", error);
+
+    return res.status(400).json({
+      error: error.message,
+    });
   }
 };
 
@@ -90,35 +125,69 @@ export const putTipoDocumento = async (req, res) => {
     const { id } = req.params;
     const data = normalize(req.body);
 
-    const existe = await TipoDocumento.findOne({ codigo: data.codigo }).lean();
-    if (existe && String(existe._id) !== String(id)) {
-      return res.status(409).json({ msg: "Este código ya se encuentra registrado." });
+    const actual = await findTipoDocumentoById(id);
+
+    if (!actual) {
+      return res.status(404).json({
+        msg: "TipoDocumento no encontrado",
+      });
     }
 
-    const actualizado = await TipoDocumento.findByIdAndUpdate(
-      id,
-      { $set: data },
-      { new: true }
-    );
+    const existe = await findTipoDocumentoByCodigo(data.codigo);
 
-    if (!actualizado) return res.status(404).json({ msg: "TipoDocumento no encontrado" });
+    if (existe && Number(existe.TIPODOCUMENTOID) !== Number(id)) {
+      return res.status(409).json({
+        msg: "Este código ya se encuentra registrado.",
+      });
+    }
+
+    const updated = await updateTipoDocumento(id, data);
+
+    if (!updated) {
+      return res.status(404).json({
+        msg: "TipoDocumento no encontrado",
+      });
+    }
+
+    const actualizado = await findTipoDocumentoById(id);
+
     return res.json(actualizado);
-
   } catch (error) {
-    if (error?.code === 11000) {
-      return res.status(409).json({ msg: "Código duplicado.", error: error.message });
+    console.error("putTipoDocumento:", error);
+
+    if (isUniqueConstraintError(error)) {
+      return res.status(409).json({
+        msg: "Código duplicado.",
+        error: error.message,
+      });
     }
-    return res.status(500).json({ error: error.message });
+
+    return res.status(500).json({
+      error: error.message,
+    });
   }
 };
 
 export const deleteTipoDocumento = async (req, res) => {
   try {
     const { id } = req.params;
-    const eliminado = await TipoDocumento.findByIdAndDelete(id);
-    if (!eliminado) return res.status(404).json({ msg: `No existe el id: ${id}` });
-    return res.json({ msg: `Se eliminó el tipo de documento con id: ${id}` });
+
+    const deleted = await deleteTipoDocumentoRepo(id);
+
+    if (!deleted) {
+      return res.status(404).json({
+        msg: `No existe el id: ${id}`,
+      });
+    }
+
+    return res.json({
+      msg: `Se eliminó el tipo de documento con id: ${id}`,
+    });
   } catch (error) {
-    return res.status(400).json({ error: error.message });
+    console.error("deleteTipoDocumento:", error);
+
+    return res.status(400).json({
+      error: error.message,
+    });
   }
 };
