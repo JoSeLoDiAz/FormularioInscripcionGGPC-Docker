@@ -1,39 +1,29 @@
 import oracledb from "oracledb";
 import { getConnection } from "../db/oracle.js";
 
-export async function findAllTipoDocumento(documentoempresa) {
+export async function findAllTamanoEmpresa() {
   let connection;
 
   try {
     connection = await getConnection();
 
-    let sql = `
+    const result = await connection.execute(`
       SELECT
-        TIPODOCUMENTOID,
+        TAMANOEMPRESAID,
         NOMBRE,
-        DOCUMENTOEMPRESA,
-        CREATED_AT,
-        UPDATED_AT
-      FROM TIPODOCUMENTO
-    `;
+        CREATEDAT,
+        UPDATEDAT
+      FROM TAMANOEMPRESA
+      ORDER BY NOMBRE
+    `);
 
-    const binds = {};
-
-    if (documentoempresa !== undefined) {
-      sql += ` WHERE DOCUMENTOEMPRESA = :documentoempresa `;
-      binds.documentoempresa = Number(documentoempresa);
-    }
-
-    sql += ` ORDER BY NOMBRE `;
-
-    const result = await connection.execute(sql, binds);
     return result.rows;
   } finally {
     if (connection) await connection.close();
   }
 }
 
-export async function findTipoDocumentoById(id) {
+export async function findTamanoEmpresaById(id) {
   let connection;
 
   try {
@@ -42,13 +32,12 @@ export async function findTipoDocumentoById(id) {
     const result = await connection.execute(
       `
       SELECT
-        TIPODOCUMENTOID,
+        TAMANOEMPRESAID,
         NOMBRE,
-        DOCUMENTOEMPRESA,
-        CREATED_AT,
-        UPDATED_AT
-      FROM TIPODOCUMENTO
-      WHERE TIPODOCUMENTOID = :id
+        CREATEDAT,
+        UPDATEDAT
+      FROM TAMANOEMPRESA
+      WHERE TAMANOEMPRESAID = :id
       `,
       { id: Number(id) }
     );
@@ -59,7 +48,7 @@ export async function findTipoDocumentoById(id) {
   }
 }
 
-export async function createTipoDocumento(data) {
+export async function createTamanoEmpresa(data) {
   let connection;
 
   try {
@@ -67,18 +56,15 @@ export async function createTipoDocumento(data) {
 
     const result = await connection.execute(
       `
-      INSERT INTO TIPODOCUMENTO (
-        NOMBRE,
-        DOCUMENTOEMPRESA
+      INSERT INTO TAMANOEMPRESA (
+        NOMBRE
       ) VALUES (
-        :nombre,
-        :documentoempresa
+        :nombre
       )
-      RETURNING TIPODOCUMENTOID INTO :id
+      RETURNING TAMANOEMPRESAID INTO :id
       `,
       {
         nombre: data.nombre,
-        documentoempresa: Number(data.documentoempresa),
         id: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER },
       }
     );
@@ -94,25 +80,22 @@ export async function createTipoDocumento(data) {
   }
 }
 
-export async function createManyTipoDocumento(items = []) {
+export async function createManyTamanoEmpresa(items = []) {
   let connection;
 
   try {
     connection = await getConnection();
 
     const sql = `
-      INSERT INTO TIPODOCUMENTO (
-        NOMBRE,
-        DOCUMENTOEMPRESA
+      INSERT INTO TAMANOEMPRESA (
+        NOMBRE
       ) VALUES (
-        :nombre,
-        :documentoempresa
+        :nombre
       )
     `;
 
     const binds = items.map((item) => ({
       nombre: item.nombre,
-      documentoempresa: Number(item.documentoempresa),
     }));
 
     await connection.executeMany(sql, binds, {
@@ -130,7 +113,7 @@ export async function createManyTipoDocumento(items = []) {
   }
 }
 
-export async function updateTipoDocumento(id, data) {
+export async function updateTamanoEmpresa(id, data) {
   let connection;
 
   try {
@@ -138,16 +121,14 @@ export async function updateTipoDocumento(id, data) {
 
     const result = await connection.execute(
       `
-      UPDATE TIPODOCUMENTO
+      UPDATE TAMANOEMPRESA
       SET
-        NOMBRE = :nombre,
-        DOCUMENTOEMPRESA = :documentoempresa
-      WHERE TIPODOCUMENTOID = :id
+        NOMBRE = :nombre
+      WHERE TAMANOEMPRESAID = :id
       `,
       {
         id: Number(id),
         nombre: data.nombre,
-        documentoempresa: Number(data.documentoempresa),
       }
     );
 
@@ -162,7 +143,7 @@ export async function updateTipoDocumento(id, data) {
   }
 }
 
-export async function deleteTipoDocumento(id) {
+export async function deleteTamanoEmpresa(id) {
   let connection;
 
   try {
@@ -170,8 +151,8 @@ export async function deleteTipoDocumento(id) {
 
     const result = await connection.execute(
       `
-      DELETE FROM TIPODOCUMENTO
-      WHERE TIPODOCUMENTOID = :id
+      DELETE FROM TAMANOEMPRESA
+      WHERE TAMANOEMPRESAID = :id
       `,
       { id: Number(id) }
     );

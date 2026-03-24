@@ -66,19 +66,19 @@
             </tr>
           </thead>
           <tbody v-if="registrosFiltrados.length > 0">
-            <tr v-for="(r, index) in registrosFiltrados" :key="index">
+            <tr v-for="(r, index) in registrosFiltrados" :key="r.DATOSBASICOSID || index">
               <td class="td-index">{{ index + 1 }}</td>
-              <td><span class="badge-tipo">{{ capitalize(r.tipodocumento.nombre) }}</span></td>
-              <td class="td-mono">{{ capitalize(r.numeroidentificacion) }}</td>
-              <td class="td-nombre">{{ capitalize(r.nombres) }}</td>
-              <td class="td-nombre">{{ capitalize(r.primerapellido) }}</td>
-              <td class="td-nombre">{{ capitalize(r.segundoapellido) }}</td>
-              <td>{{ capitalize(r.empresa.empresa) }}</td>
-              <td class="td-mono">{{ capitalize(r.celular) }}</td>
-              <td class="td-correo">{{ r.correo }}</td>
-              <td>{{ capitalize(r.departamento.nombre) }}</td>
-              <td>{{ capitalize(r.ciudad.nombre) }}</td>
-              <td>{{ r.modalidad === 1 ? "Presencial" : r.modalidad === 2 ? "Virtual" : "" }}</td>
+              <td><span class="badge-tipo">{{ capitalize(r.TIPODOCUMENTO_NOMBRE) }}</span></td>
+              <td class="td-mono">{{ r.NUMEROIDENTIFICACION }}</td>
+              <td class="td-nombre">{{ capitalize(r.NOMBRES) }}</td>
+              <td class="td-nombre">{{ capitalize(r.PRIMERAPELLIDO) }}</td>
+              <td class="td-nombre">{{ capitalize(r.SEGUNDOAPELLIDO || '') }}</td>
+              <td>{{ capitalize(r.EMPRESA_NOMBRE) }}</td>
+              <td class="td-mono">{{ r.CELULAR }}</td>
+              <td class="td-correo">{{ r.CORREO }}</td>
+              <td>{{ capitalize(r.DEPARTAMENTO_NOMBRE) }}</td>
+              <td>{{ capitalize(r.CIUDAD_NOMBRE) }}</td>
+              <td>{{ r.MODALIDAD === 1 ? "Presencial" : r.MODALIDAD === 2 ? "Virtual" : "" }}</td>
             </tr>
           </tbody>
           <tbody v-else>
@@ -104,32 +104,38 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue"
+import { ref, computed, onMounted } from "vue"
 import { useDatosBasicosStore } from "../stores/datosbasicos.js"
+import { useAppStore } from "../stores/appStores.js"
 import ExcelJS from "exceljs";
 
 const useDatosBasicos = useDatosBasicosStore()
+const appStore = useAppStore()
 
 const registros = ref([])
 const busqueda  = ref('')
 
 async function buscarDatos() {
+  appStore.startLoading("Cargando registros...", 400)
   try {
     const res = await useDatosBasicos.buscarDatosBasicos()
-    registros.value = res
+    registros.value = Array.isArray(res) ? res : []
   } catch (err) {
-    console.log(err)
+    console.error("Error cargando datos:", err)
+    registros.value = []
+  } finally {
+    await appStore.finishLoading()
   }
 }
 
-buscarDatos()
+onMounted(buscarDatos)
 
 // Filtro de búsqueda
 const registrosFiltrados = computed(() => {
   if (!busqueda.value.trim()) return registros.value
   const q = busqueda.value.toLowerCase()
   return registros.value.filter(r =>
-    [r.nombres, r.primerapellido, r.segundoapellido, r.correo, r.empresa, r.numeroidentificacion]
+    [r.NOMBRES, r.PRIMERAPELLIDO, r.SEGUNDOAPELLIDO, r.CORREO, r.EMPRESA_NOMBRE, r.NUMEROIDENTIFICACION]
       .some(v => v && String(v).toLowerCase().includes(q))
   )
 })
@@ -157,25 +163,19 @@ async function exportarExcel() {
   ];
   
   registros.value.forEach(u => {
-    let modalidadTexto = "";
-
-    if (u.modalidad === 1) {
-      modalidadTexto = "Presencial";
-    } else if (u.modalidad === 2) {
-      modalidadTexto = "Virtual";
-    }
+    const modalidadTexto = u.MODALIDAD === 1 ? "Presencial" : u.MODALIDAD === 2 ? "Virtual" : "";
     sheet.addRow({
-      tipodocumento: capitalize(u.tipodocumento.nombre),
-      numeroidentificacion: capitalize(u.numeroidentificacion),
-      nombres: capitalize(u.nombres),
-      primerapellido: capitalize(u.primerapellido),
-      segundoapellido: capitalize(u.segundoapellido),
-      empresa: capitalize(u.empresa.empresa),
-      celular: capitalize(u.celular),
-      correo: u.correo,
-      departamento: capitalize(u.departamento.nombre),
-      ciudad: capitalize(u.ciudad.nombre),
-      modalidad: capitalize(modalidadTexto)
+      tipodocumento: capitalize(u.TIPODOCUMENTO_NOMBRE || ''),
+      numeroidentificacion: u.NUMEROIDENTIFICACION,
+      nombres: capitalize(u.NOMBRES || ''),
+      primerapellido: capitalize(u.PRIMERAPELLIDO || ''),
+      segundoapellido: capitalize(u.SEGUNDOAPELLIDO || ''),
+      empresa: capitalize(u.EMPRESA_NOMBRE || ''),
+      celular: u.CELULAR,
+      correo: u.CORREO,
+      departamento: capitalize(u.DEPARTAMENTO_NOMBRE || ''),
+      ciudad: capitalize(u.CIUDAD_NOMBRE || ''),
+      modalidad: modalidadTexto,
     });
   });
 

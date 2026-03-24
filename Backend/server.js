@@ -3,13 +3,13 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 
-import ciudad from "../routers/ciudad.js";
-import datosbasicos from "../routers/datosbasicos.js";
-import departamento from "../routers/departamento.js";
-import empresa from "../routers/empresa.js";
-import login from "../routers/login.js";
-import tamanoempresa from "../routers/tamanoempresa.js";
-import tipodocumento from "../routers/tipodocumento.js";
+import ciudad from "./routers/ciudad.js";
+import datosbasicos from "./routers/datosbasicos.js";
+import departamento from "./routers/departamento.js";
+import empresa from "./routers/empresa.js";
+import login from "./routers/login.js";
+import tamanoempresa from "./routers/tamanoempresa.js";
+import tipodocumento from "./routers/tipodocumento.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,7 +26,7 @@ class Server {
         this.app.use(express.json({ limit: "5mb" }));
         this.app.use(express.urlencoded({ extended: true, limit: "5mb" }));
         this.app.use(cors());
-        this.app.use(express.static(path.join(__dirname, "..", "public")));
+        this.app.use(express.static(path.join(__dirname, "public")));
     }
 
     routes() {
@@ -49,7 +49,7 @@ class Server {
 
     frontend() {
         this.app.use((req, res) => {
-            res.sendFile(path.join(__dirname, "..", "public", "index.html"));
+            res.sendFile(path.join(__dirname, "public", "index.html"));
         });
     }
 

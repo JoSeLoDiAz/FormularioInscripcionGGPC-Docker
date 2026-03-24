@@ -1,8 +1,14 @@
-import TamanoEmpresa from "../models/tamanoempresa.js";
+import {
+  createManyTamanoEmpresa,
+  createTamanoEmpresa,
+  deleteTamanoEmpresa as deleteTamanoEmpresaRepo,
+  findAllTamanoEmpresa,
+  findTamanoEmpresaById,
+  updateTamanoEmpresa,
+} from "../repositories/tamanoempresa.js";
 
-const normalize = (data) => ({
-  codigo: Number(data.codigo),
-  nombre: String(data.nombre ?? "").trim().toLowerCase(),
+const normalize = (d) => ({
+  nombre: String(d.nombre ?? "").trim().toLowerCase(),
 });
 
 export const postTamanoEmpresa = async (req, res) => {
@@ -12,55 +18,25 @@ export const postTamanoEmpresa = async (req, res) => {
     // MASIVO
     if (Array.isArray(payload)) {
       const normalized = payload.map(normalize);
-      const codigos = normalized.map((x) => x.codigo);
 
-      // duplicados dentro del envío
-      if (new Set(codigos).size !== codigos.length) {
-        return res.status(400).json({ msg: "Hay códigos duplicados en el envío." });
-      }
-
-      // duplicados en BD
-      const existentes = await TamanoEmpresa.find(
-        { codigo: { $in: codigos } },
-        { codigo: 1 }
-      ).lean();
-
-      if (existentes.length > 0) {
-        return res.status(409).json({
-          msg: "Algunos códigos ya existen en la base de datos.",
-          codigosDuplicados: existentes.map((a) => a.codigo),
-        });
-      }
-
-      const insertados = await TamanoEmpresa.insertMany(normalized, {
-        ordered: false,
-      });
+      const total = await createManyTamanoEmpresa(normalized);
 
       return res.status(201).json({
         msg: "Tamaños de empresa insertados correctamente",
-        total: insertados.length,
+        total,
       });
     }
 
     // INDIVIDUAL
     const data = normalize(payload);
 
-    const existe = await TamanoEmpresa.findOne({ codigo: data.codigo });
-    if (existe) {
-      return res.status(409).json({
-        msg: "El código ya se encuentra registrado.",
-      });
-    }
+    const id = await createTamanoEmpresa(data);
+    const creado = await findTamanoEmpresaById(id);
 
-    const creado = await TamanoEmpresa.create(data);
     return res.status(201).json(creado);
   } catch (error) {
-    if (error?.code === 11000) {
-      return res.status(409).json({
-        msg: "Código duplicado.",
-        error: error.message,
-      });
-    }
+    console.error("postTamanoEmpresa:", error);
+
     return res.status(500).json({
       msg: "Error interno del servidor",
       error: error.message,
@@ -70,9 +46,12 @@ export const postTamanoEmpresa = async (req, res) => {
 
 export const getTamanoEmpresa = async (req, res) => {
   try {
-    const lista = await TamanoEmpresa.find().sort({ codigo: 1 }).lean();
-    return res.json({ data: lista });
+    const data = await findAllTamanoEmpresa();
+
+    return res.json({ data });
   } catch (error) {
+    console.error("getTamanoEmpresa:", error);
+
     return res.status(500).json({
       msg: "No se puede buscar Tamaño Empresa",
       error: error.message,
@@ -83,15 +62,21 @@ export const getTamanoEmpresa = async (req, res) => {
 export const getTamanoEmpresaId = async (req, res) => {
   try {
     const { id } = req.params;
+    const item = await findTamanoEmpresaById(id);
 
-    const item = await TamanoEmpresa.findById(id).lean();
     if (!item) {
-      return res.status(404).json({ msg: "No encontrado" });
+      return res.status(404).json({
+        msg: `Sin coincidencias para ${id}`,
+      });
     }
 
     return res.json(item);
   } catch (error) {
-    return res.status(400).json({ error: error.message });
+    console.error("getTamanoEmpresaId:", error);
+
+    return res.status(400).json({
+      error: error.message,
+    });
   }
 };
 
@@ -100,26 +85,31 @@ export const putTamanoEmpresa = async (req, res) => {
     const { id } = req.params;
     const data = normalize(req.body);
 
-    const existe = await TamanoEmpresa.findOne({ codigo: data.codigo });
-    if (existe && String(existe._id) !== String(id)) {
-      return res.status(409).json({
-        msg: "Este código ya está registrado.",
+    const actual = await findTamanoEmpresaById(id);
+
+    if (!actual) {
+      return res.status(404).json({
+        msg: "TamanoEmpresa no encontrado",
       });
     }
 
-    const actualizado = await TamanoEmpresa.findByIdAndUpdate(
-      id,
-      { $set: data },
-      { new: true }
-    );
+    const updated = await updateTamanoEmpresa(id, data);
 
-    if (!actualizado) {
-      return res.status(404).json({ msg: "No encontrado" });
+    if (!updated) {
+      return res.status(404).json({
+        msg: "TamanoEmpresa no encontrado",
+      });
     }
+
+    const actualizado = await findTamanoEmpresaById(id);
 
     return res.json(actualizado);
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    console.error("putTamanoEmpresa:", error);
+
+    return res.status(500).json({
+      error: error.message,
+    });
   }
 };
 
@@ -127,11 +117,11 @@ export const deleteTamanoEmpresa = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const eliminado = await TamanoEmpresa.findByIdAndDelete(id);
+    const deleted = await deleteTamanoEmpresaRepo(id);
 
-    if (!eliminado) {
+    if (!deleted) {
       return res.status(404).json({
-        msg: "No existe el Tamaño Empresa",
+        msg: `No existe el id: ${id}`,
       });
     }
 
@@ -139,6 +129,10 @@ export const deleteTamanoEmpresa = async (req, res) => {
       msg: `Se eliminó el Tamaño Empresa con id: ${id}`,
     });
   } catch (error) {
-    return res.status(400).json({ error: error.message });
+    console.error("deleteTamanoEmpresa:", error);
+
+    return res.status(400).json({
+      error: error.message,
+    });
   }
 };

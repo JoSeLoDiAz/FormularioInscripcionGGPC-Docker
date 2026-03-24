@@ -1,7 +1,7 @@
 import oracledb from "oracledb";
 import { getConnection } from "../db/oracle.js";
 
-export async function findAllTipoDocumento(documentoempresa) {
+export async function findAllCiudad(departamentoid) {
   let connection;
 
   try {
@@ -9,19 +9,19 @@ export async function findAllTipoDocumento(documentoempresa) {
 
     let sql = `
       SELECT
-        TIPODOCUMENTOID,
+        CIUDADID,
         NOMBRE,
-        DOCUMENTOEMPRESA,
-        CREATED_AT,
-        UPDATED_AT
-      FROM TIPODOCUMENTO
+        DEPARTAMENTOID,
+        CREATEDAT,
+        UPDATEDAT
+      FROM CIUDAD
     `;
 
     const binds = {};
 
-    if (documentoempresa !== undefined) {
-      sql += ` WHERE DOCUMENTOEMPRESA = :documentoempresa `;
-      binds.documentoempresa = Number(documentoempresa);
+    if (departamentoid !== undefined) {
+      sql += ` WHERE DEPARTAMENTOID = :departamentoid `;
+      binds.departamentoid = Number(departamentoid);
     }
 
     sql += ` ORDER BY NOMBRE `;
@@ -33,7 +33,7 @@ export async function findAllTipoDocumento(documentoempresa) {
   }
 }
 
-export async function findTipoDocumentoById(id) {
+export async function findCiudadById(id) {
   let connection;
 
   try {
@@ -42,13 +42,13 @@ export async function findTipoDocumentoById(id) {
     const result = await connection.execute(
       `
       SELECT
-        TIPODOCUMENTOID,
+        CIUDADID,
         NOMBRE,
-        DOCUMENTOEMPRESA,
-        CREATED_AT,
-        UPDATED_AT
-      FROM TIPODOCUMENTO
-      WHERE TIPODOCUMENTOID = :id
+        DEPARTAMENTOID,
+        CREATEDAT,
+        UPDATEDAT
+      FROM CIUDAD
+      WHERE CIUDADID = :id
       `,
       { id: Number(id) }
     );
@@ -59,7 +59,7 @@ export async function findTipoDocumentoById(id) {
   }
 }
 
-export async function createTipoDocumento(data) {
+export async function createCiudad(data) {
   let connection;
 
   try {
@@ -67,18 +67,18 @@ export async function createTipoDocumento(data) {
 
     const result = await connection.execute(
       `
-      INSERT INTO TIPODOCUMENTO (
+      INSERT INTO CIUDAD (
         NOMBRE,
-        DOCUMENTOEMPRESA
+        DEPARTAMENTOID
       ) VALUES (
         :nombre,
-        :documentoempresa
+        :departamentoid
       )
-      RETURNING TIPODOCUMENTOID INTO :id
+      RETURNING CIUDADID INTO :id
       `,
       {
         nombre: data.nombre,
-        documentoempresa: Number(data.documentoempresa),
+        departamentoid: Number(data.departamentoid),
         id: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER },
       }
     );
@@ -94,25 +94,25 @@ export async function createTipoDocumento(data) {
   }
 }
 
-export async function createManyTipoDocumento(items = []) {
+export async function createManyCiudad(items = []) {
   let connection;
 
   try {
     connection = await getConnection();
 
     const sql = `
-      INSERT INTO TIPODOCUMENTO (
+      INSERT INTO CIUDAD (
         NOMBRE,
-        DOCUMENTOEMPRESA
+        DEPARTAMENTOID
       ) VALUES (
         :nombre,
-        :documentoempresa
+        :departamentoid
       )
     `;
 
     const binds = items.map((item) => ({
       nombre: item.nombre,
-      documentoempresa: Number(item.documentoempresa),
+      departamentoid: Number(item.departamentoid),
     }));
 
     await connection.executeMany(sql, binds, {
@@ -130,7 +130,7 @@ export async function createManyTipoDocumento(items = []) {
   }
 }
 
-export async function updateTipoDocumento(id, data) {
+export async function updateCiudad(id, data) {
   let connection;
 
   try {
@@ -138,16 +138,16 @@ export async function updateTipoDocumento(id, data) {
 
     const result = await connection.execute(
       `
-      UPDATE TIPODOCUMENTO
+      UPDATE CIUDAD
       SET
         NOMBRE = :nombre,
-        DOCUMENTOEMPRESA = :documentoempresa
-      WHERE TIPODOCUMENTOID = :id
+        DEPARTAMENTOID = :departamentoid
+      WHERE CIUDADID = :id
       `,
       {
         id: Number(id),
         nombre: data.nombre,
-        documentoempresa: Number(data.documentoempresa),
+        departamentoid: Number(data.departamentoid),
       }
     );
 
@@ -162,7 +162,7 @@ export async function updateTipoDocumento(id, data) {
   }
 }
 
-export async function deleteTipoDocumento(id) {
+export async function deleteCiudad(id) {
   let connection;
 
   try {
@@ -170,8 +170,8 @@ export async function deleteTipoDocumento(id) {
 
     const result = await connection.execute(
       `
-      DELETE FROM TIPODOCUMENTO
-      WHERE TIPODOCUMENTOID = :id
+      DELETE FROM CIUDAD
+      WHERE CIUDADID = :id
       `,
       { id: Number(id) }
     );

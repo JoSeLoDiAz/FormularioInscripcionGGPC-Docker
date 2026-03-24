@@ -1,43 +1,54 @@
-import { validarCampos } from "../valichecks/validar-campos.js"
-import { check } from "express-validator"
-import { Router } from "express"
+import { Router } from "express";
+import { body } from "express-validator";
+import { validarCampos } from "../valichecks/validar-campos.js";
 
-
-const router = Router()
-
-import{
-    postDepartamento,
-    getDepartamento,
-    getDepartamentoId,
-    putDepartamento,
-    deleteDepartamento
+import {
+  deleteDepartamento,
+  getDepartamento,
+  getDepartamentoId,
+  postDepartamento,
+  putDepartamento,
 } from "../controllers/departamento.js";
 
-router.post("/",
-   [
-      // si viene array
-      check("*.codigo", "Ingrese el codigo del Departamento").optional({ nullable: true }).notEmpty().isNumeric(),
-      check("*.nombre", "Ingrese el Nombre del departamento").optional({ nullable: true }).trim().notEmpty().toLowerCase(),
+const router = Router();
 
-      // si viene objeto
-      check("codigo", "Ingrese el codigo del Departamento").optional({ nullable: true }).notEmpty().isNumeric(),
-      check("nombre", "Ingrese el Nombre del departamento").optional({ nullable: true }).trim().notEmpty().toLowerCase(),
+const reglasObj = [
+  body("nombre", "Ingrese el nombre del Departamento")
+    .trim()
+    .notEmpty(),
+];
 
-      validarCampos
-   ],
-   postDepartamento
+const reglasArr = [
+  body("*.nombre", "Ingrese el nombre del Departamento")
+    .trim()
+    .notEmpty(),
+];
+
+router.post(
+  "/",
+  async (req, res, next) => {
+    try {
+      const rules = Array.isArray(req.body) ? reglasArr : reglasObj;
+      await Promise.all(rules.map((r) => r.run(req)));
+      next();
+    } catch (error) {
+      next(error);
+    }
+  },
+  validarCampos,
+  postDepartamento
 );
 
-router.get('/', getDepartamento);
+router.get("/", getDepartamento);
+router.get("/:id", getDepartamentoId);
 
-router.get('/id/:id',getDepartamentoId);
+router.put(
+  "/:id",
+  reglasObj,
+  validarCampos,
+  putDepartamento
+);
 
-router.put("/:id", [
-   check("codigo", "Ingrese el codigo del Departamento").notEmpty().isNumeric(),
-   check("nombre", "Ingrese el Nombre del departamento").trim().notEmpty().toLowerCase(),
-   validarCampos
-], putDepartamento);
-
-router.delete('/:id', deleteDepartamento);
+router.delete("/:id", deleteDepartamento);
 
 export default router;

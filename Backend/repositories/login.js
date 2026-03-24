@@ -1,39 +1,7 @@
 import oracledb from "oracledb";
 import { getConnection } from "../db/oracle.js";
 
-export async function findAllTipoDocumento(documentoempresa) {
-  let connection;
-
-  try {
-    connection = await getConnection();
-
-    let sql = `
-      SELECT
-        TIPODOCUMENTOID,
-        NOMBRE,
-        DOCUMENTOEMPRESA,
-        CREATED_AT,
-        UPDATED_AT
-      FROM TIPODOCUMENTO
-    `;
-
-    const binds = {};
-
-    if (documentoempresa !== undefined) {
-      sql += ` WHERE DOCUMENTOEMPRESA = :documentoempresa `;
-      binds.documentoempresa = Number(documentoempresa);
-    }
-
-    sql += ` ORDER BY NOMBRE `;
-
-    const result = await connection.execute(sql, binds);
-    return result.rows;
-  } finally {
-    if (connection) await connection.close();
-  }
-}
-
-export async function findTipoDocumentoById(id) {
+export async function findLoginByEmail(email) {
   let connection;
 
   try {
@@ -42,13 +10,48 @@ export async function findTipoDocumentoById(id) {
     const result = await connection.execute(
       `
       SELECT
-        TIPODOCUMENTOID,
-        NOMBRE,
-        DOCUMENTOEMPRESA,
-        CREATED_AT,
-        UPDATED_AT
-      FROM TIPODOCUMENTO
-      WHERE TIPODOCUMENTOID = :id
+        L.LOGINID,
+        L.DATOSBASICOSID,
+        L.EMAIL,
+        L.PASSWORD,
+        L.ESTADO,
+        L.RESETTOKEN,
+        L.CREATEDAT,
+        L.UPDATEDAT,
+        DB.NOMBRES,
+        DB.PRIMERAPELLIDO
+      FROM LOGIN L
+      LEFT JOIN DATOSBASICOS DB ON L.DATOSBASICOSID = DB.DATOSBASICOSID
+      WHERE L.EMAIL = :email
+      `,
+      { email: String(email) }
+    );
+
+    return result.rows[0] || null;
+  } finally {
+    if (connection) await connection.close();
+  }
+}
+
+export async function findLoginById(id) {
+  let connection;
+
+  try {
+    connection = await getConnection();
+
+    const result = await connection.execute(
+      `
+      SELECT
+        LOGINID,
+        DATOSBASICOSID,
+        EMAIL,
+        PASSWORD,
+        ESTADO,
+        RESETTOKEN,
+        CREATEDAT,
+        UPDATEDAT
+      FROM LOGIN
+      WHERE LOGINID = :id
       `,
       { id: Number(id) }
     );
@@ -59,7 +62,7 @@ export async function findTipoDocumentoById(id) {
   }
 }
 
-export async function createTipoDocumento(data) {
+export async function createLogin(data) {
   let connection;
 
   try {
@@ -67,18 +70,24 @@ export async function createTipoDocumento(data) {
 
     const result = await connection.execute(
       `
-      INSERT INTO TIPODOCUMENTO (
-        NOMBRE,
-        DOCUMENTOEMPRESA
+      INSERT INTO LOGIN (
+        DATOSBASICOSID,
+        EMAIL,
+        PASSWORD,
+        ESTADO
       ) VALUES (
-        :nombre,
-        :documentoempresa
+        :datosbasicosid,
+        :email,
+        :password,
+        :estado
       )
-      RETURNING TIPODOCUMENTOID INTO :id
+      RETURNING LOGINID INTO :id
       `,
       {
-        nombre: data.nombre,
-        documentoempresa: Number(data.documentoempresa),
+        datosbasicosid: data.datosbasicosid ? Number(data.datosbasicosid) : null,
+        email: String(data.email),
+        password: String(data.password),
+        estado: Number(data.estado),
         id: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER },
       }
     );
@@ -94,43 +103,7 @@ export async function createTipoDocumento(data) {
   }
 }
 
-export async function createManyTipoDocumento(items = []) {
-  let connection;
-
-  try {
-    connection = await getConnection();
-
-    const sql = `
-      INSERT INTO TIPODOCUMENTO (
-        NOMBRE,
-        DOCUMENTOEMPRESA
-      ) VALUES (
-        :nombre,
-        :documentoempresa
-      )
-    `;
-
-    const binds = items.map((item) => ({
-      nombre: item.nombre,
-      documentoempresa: Number(item.documentoempresa),
-    }));
-
-    await connection.executeMany(sql, binds, {
-      autoCommit: false,
-    });
-
-    await connection.commit();
-
-    return items.length;
-  } catch (error) {
-    if (connection) await connection.rollback();
-    throw error;
-  } finally {
-    if (connection) await connection.close();
-  }
-}
-
-export async function updateTipoDocumento(id, data) {
+export async function updateLogin(id, data) {
   let connection;
 
   try {
@@ -138,16 +111,16 @@ export async function updateTipoDocumento(id, data) {
 
     const result = await connection.execute(
       `
-      UPDATE TIPODOCUMENTO
+      UPDATE LOGIN
       SET
-        NOMBRE = :nombre,
-        DOCUMENTOEMPRESA = :documentoempresa
-      WHERE TIPODOCUMENTOID = :id
+        EMAIL = :email,
+        PASSWORD = :password
+      WHERE LOGINID = :id
       `,
       {
         id: Number(id),
-        nombre: data.nombre,
-        documentoempresa: Number(data.documentoempresa),
+        email: String(data.email),
+        password: String(data.password),
       }
     );
 
@@ -162,7 +135,7 @@ export async function updateTipoDocumento(id, data) {
   }
 }
 
-export async function deleteTipoDocumento(id) {
+export async function updateLoginEstado(id, estado) {
   let connection;
 
   try {
@@ -170,8 +143,37 @@ export async function deleteTipoDocumento(id) {
 
     const result = await connection.execute(
       `
-      DELETE FROM TIPODOCUMENTO
-      WHERE TIPODOCUMENTOID = :id
+      UPDATE LOGIN
+      SET ESTADO = :estado
+      WHERE LOGINID = :id
+      `,
+      {
+        id: Number(id),
+        estado: Number(estado),
+      }
+    );
+
+    await connection.commit();
+
+    return result.rowsAffected;
+  } catch (error) {
+    if (connection) await connection.rollback();
+    throw error;
+  } finally {
+    if (connection) await connection.close();
+  }
+}
+
+export async function deleteLogin(id) {
+  let connection;
+
+  try {
+    connection = await getConnection();
+
+    const result = await connection.execute(
+      `
+      DELETE FROM LOGIN
+      WHERE LOGINID = :id
       `,
       { id: Number(id) }
     );

@@ -34,7 +34,7 @@ export const useDatosBasicosStore = defineStore("DatosBasicos", () => {
   const buscarDatosBasicosId = async (id) => {
     try {
       cargando.value = true;
-      let response = await axios.get(`${direccion}/datosbasicos/id/${id}`);
+      let response = await axios.get(`${direccion}/datosbasicos/${id}`);
       return response.data;
     } catch (error) {
       cargando.value = true;
@@ -56,7 +56,7 @@ export const useDatosBasicosStore = defineStore("DatosBasicos", () => {
   const buscarDatosBasicosNumIdentificacion = async (numeroidentificacion) => {
     try {
       cargando.value = true;
-      let response = await axios.get(`${direccion}/datosbasicos/${numeroidentificacion}`);
+      let response = await axios.get(`${direccion}/datosbasicos/nit/${numeroidentificacion}`);
       return response.data;
     } catch (error) {
       cargando.value = true;

@@ -302,8 +302,8 @@
                         </label>
                         <select class="form-select" v-model="form.departamento" required @change="onDepartamentoChange">
                           <option value="" disabled>Seleccione…</option>
-                          <option v-for="d in departamentos" :key="d._id" :value="d._id">
-                            {{ (d.departamento || d.nombre || "").toUpperCase() }}
+                          <option v-for="d in departamentos" :key="d.DEPARTAMENTOID" :value="d.DEPARTAMENTOID">
+                            {{ (d.NOMBRE || "").toUpperCase() }}
                           </option>
                         </select>
                         <div class="invalid-feedback">Campo obligatorio.</div>
@@ -318,8 +318,8 @@
                           <option value="" disabled>
                             {{ form.departamento ? "Seleccione…" : "Seleccione un departamento primero" }}
                           </option>
-                          <option v-for="c in ciudadesFiltradas" :key="c._id" :value="c._id">
-                            {{ (c.ciudad || c.nombre || "").toUpperCase() }}
+                          <option v-for="c in ciudadesFiltradas" :key="c.CIUDADID" :value="c.CIUDADID">
+                            {{ (c.NOMBRE || "").toUpperCase() }}
                           </option>
                         </select>
                         <div class="invalid-feedback">Campo obligatorio.</div>
@@ -396,8 +396,8 @@
                             <label class="form-label">Tamaño empresa <span class="text-danger">*</span></label>
                             <select class="form-select" v-model="form.empresaTamanoId" required>
                               <option value="" disabled>Seleccione…</option>
-                              <option v-for="t in tamanosEmpresa" :key="t._id" :value="t._id">
-                                {{ (t.nombre || "").toUpperCase() }}
+                              <option v-for="t in tamanosEmpresa" :key="t.TAMANOEMPRESAID" :value="t.TAMANOEMPRESAID">
+                                {{ (t.NOMBRE || "").toUpperCase() }}
                               </option>
                             </select>
                             <div class="invalid-feedback">Campo obligatorio.</div>
@@ -715,8 +715,7 @@ let ciudadesFiltradas = computed(() => {
   if (!depId) return [];
 
   return (ciudades.value || []).filter((c) => {
-    if (typeof c.departamento === "string") return c.departamento === depId;
-    return c.departamento?._id === depId;
+    return Number(c.DEPARTAMENTOID) === Number(depId);
   });
 });
 
@@ -829,25 +828,22 @@ async function BuscarNumIdentificacion() {
 
   const res = await useDatosBasicos.buscarDatosBasicosNumIdentificacion(form.numeroId);
 
-  id.value = res._id;
-  form.tipoId = res.tipodocumento?.TIPODOCUMENTOID || res.tipodocumento;
-  form.numeroId = res.numeroidentificacion;
-  form.nombres = res.nombres;
-  form.primerApellido = res.primerapellido || "";
-  form.segundoApellido = res.segundoapellido || "";
-  form.celular = res.celular;
-  form.correo = res.correo;
-  form.departamento = res.departamento?._id || res.departamento;
-  form.ciudad = res.ciudad?._id || res.ciudad;
-  form.asistenciaPresencial = Number(res.modalidad);
+  id.value = res.DATOSBASICOSID;
+  form.tipoId = res.TIPODOCUMENTOID;
+  form.numeroId = res.NUMEROIDENTIFICACION;
+  form.nombres = res.NOMBRES;
+  form.primerApellido = res.PRIMERAPELLIDO || "";
+  form.segundoApellido = res.SEGUNDOAPELLIDO || "";
+  form.celular = res.CELULAR;
+  form.correo = res.CORREO;
+  form.departamento = res.DEPARTAMENTOID;
+  form.ciudad = res.CIUDADID;
+  form.asistenciaPresencial = Number(res.MODALIDAD);
 
   // Empresa
-  if (res.empresa && typeof res.empresa === "object") {
-    setEmpresaFromObj(res.empresa);
-  } else if (res.empresa) {
-    // viene solo ID -> buscarla
-    form.empresaId = res.empresa;
-    const emp = await empresaStore.buscarEmpresaId(res.empresa);
+  if (res.EMPRESAID) {
+    form.empresaId = res.EMPRESAID;
+    const emp = await empresaStore.buscarEmpresaId(res.EMPRESAID);
     if (emp) setEmpresaFromObj(emp);
   } else {
     clearEmpresa();
@@ -866,12 +862,12 @@ function clearEmpresaDependientes() {
 }
 
 function setEmpresaFromObj(e) {
-  form.empresaId = e._id || "";
-  form.empresaTipoId = e.tipoidentificacion?._id || e.tipoidentificacion || "";
-  form.empresaNumeroId = e.numeroidentificacion || "";
-  form.empresaDv = String(e.dv ?? "");
-  form.empresaNombre = e.empresa || "";
-  form.empresaTamanoId = e.tamanoempresa?._id || e.tamanoempresa || "";
+  form.empresaId = e.EMPRESAID || "";
+  form.empresaTipoId = e.TIPODOCUMENTOID || "";
+  form.empresaNumeroId = e.NUMEROIDENTIFICACION || "";
+  form.empresaDv = String(e.DV ?? "");
+  form.empresaNombre = e.EMPRESA || "";
+  form.empresaTamanoId = e.TAMANOEMPRESAID || "";
 }
 
 function clearEmpresa() {
@@ -887,11 +883,11 @@ function clearEmpresa() {
 
 function buildEmpresaPayload() {
   return {
-    tipoidentificacion: form.empresaTipoId,
+    tipodocumentoid: form.empresaTipoId,
     numeroidentificacion: form.empresaNumeroId,
     dv: form.empresaDv,
     empresa: form.empresaNombre,
-    tamanoempresa: form.empresaTamanoId,
+    tamanoempresaid: form.empresaTamanoId,
   };
 }
 async function BuscarEmpresaPorNumero() {
@@ -921,12 +917,12 @@ async function BuscarEmpresaPorNumero() {
 
     empresaNoExiste.value = false;
 
-    form.empresaId = emp._id || "";
-    form.empresaTipoId = emp.tipoidentificacion?._id || emp.tipoidentificacion || form.empresaTipoId;
-    form.empresaNumeroId = emp.numeroidentificacion || nit;
-    form.empresaDv = String(emp.dv ?? form.empresaDv ?? "");
-    form.empresaNombre = emp.empresa || "";
-    form.empresaTamanoId = emp.tamanoempresa?._id || emp.tamanoempresa || "";
+    form.empresaId = emp.EMPRESAID || "";
+    form.empresaTipoId = emp.TIPODOCUMENTOID || form.empresaTipoId;
+    form.empresaNumeroId = emp.NUMEROIDENTIFICACION || nit;
+    form.empresaDv = String(emp.DV ?? form.empresaDv ?? "");
+    form.empresaNombre = emp.EMPRESA || "";
+    form.empresaTamanoId = emp.TAMANOEMPRESAID || "";
   } catch (e) {
     empresaError.value = e?.response?.data?.msg || "Error consultando empresa";
     clearEmpresaDependientes();
@@ -945,21 +941,21 @@ async function guardar() {
 
     if (!empresaId) {
       const empRes = await empresaStore.registrarEmpresa(buildEmpresaPayload());
-      empresaId = empRes?._id || empRes?.empresa?._id;
+      empresaId = empRes?.EMPRESAID;
       if (!empresaId) throw new Error("No se pudo obtener el ID de la empresa.");
     }
 
     await useDatosBasicos.registrarDatosBasicos({
-      tipodocumento: form.tipoId,
+      tipodocumentoid: form.tipoId,
       numeroidentificacion: form.numeroId,
       nombres: form.nombres,
       primerapellido: form.primerApellido,
       segundoapellido: form.segundoApellido || "",
-      empresa: empresaId,
+      empresaid: empresaId,
       celular: form.celular,
       correo: form.correo,
-      departamento: form.departamento,
-      ciudad: form.ciudad,
+      departamentoid: form.departamento,
+      ciudadid: form.ciudad,
       modalidad: Number(form.asistenciaPresencial),
     });
 
@@ -1014,22 +1010,22 @@ async function editar() {
       await empresaStore.editarEmpresa(form.empresaId, buildEmpresaPayload());
     } else {
       const empRes = await empresaStore.registrarEmpresa(buildEmpresaPayload());
-      form.empresaId = empRes?._id || empRes?.empresa?._id;
+      form.empresaId = empRes?.EMPRESAID;
       if (!form.empresaId) throw new Error("No se pudo obtener el ID de la empresa.");
     }
 
     // 2) Datos básicos
     await useDatosBasicos.editarDatosBasicos(id.value, {
-      tipodocumento: form.tipoId,
+      tipodocumentoid: form.tipoId,
       numeroidentificacion: form.numeroId,
       nombres: form.nombres,
       primerapellido: form.primerApellido,
       segundoapellido: form.segundoApellido || "",
-      empresa: form.empresaId,
+      empresaid: form.empresaId,
       celular: form.celular,
       correo: form.correo,
-      departamento: form.departamento,
-      ciudad: form.ciudad,
+      departamentoid: form.departamento,
+      ciudadid: form.ciudad,
       modalidad: Number(form.asistenciaPresencial),
     });
 

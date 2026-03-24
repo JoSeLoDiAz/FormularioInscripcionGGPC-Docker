@@ -1,21 +1,43 @@
-  import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
 import QRCode from "qrcode";
 import { fileURLToPath } from "url";
-import DatosBasicos from "../models/datosbasicos.js";
-  dotenv.config();
+import dotenv from "dotenv";
+dotenv.config();
 
-  import { sendEmail } from "../helpers/sendEmail.js";
+import { sendEmail } from "../helpers/sendEmail.js";
+import {
+  countDatosBasicosByEmpresaId,
+  createDatosBasicos,
+  deleteDatosBasicos as deleteDatosBasicosRepo,
+  findAllDatosBasicos,
+  findDatosBasicosById,
+  findDatosBasicosByNumeroIdentificacion,
+  getDatosBasicosStats as getDatosBasicosStatsRepo,
+  updateDatosBasicos,
+} from "../repositories/datosbasicos.js";
 
-  //link real
-  const TEAMS_LINK = process.env.TEAMS_LINK
+const TEAMS_LINK = process.env.TEAMS_LINK;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const normalize = (d) => ({
+  tipodocumentoid: Number(d.tipodocumentoid),
+  numeroidentificacion: String(d.numeroidentificacion ?? "").trim(),
+  nombres: String(d.nombres ?? "").trim().toLowerCase(),
+  primerapellido: String(d.primerapellido ?? "").trim().toLowerCase(),
+  segundoapellido: d.segundoapellido ? String(d.segundoapellido).trim().toLowerCase() : null,
+  empresaid: Number(d.empresaid),
+  celular: String(d.celular ?? "").trim(),
+  correo: String(d.correo ?? "").trim().toLowerCase(),
+  departamentoid: Number(d.departamentoid),
+  ciudadid: Number(d.ciudadid),
+  modalidad: Number(d.modalidad),
+});
+
 function getBannerAsBase64() {
-  const bannerPath = path.join(__dirname, "..", "img", "formularioprincipal.jpg"); // ajusta si está en otro lado
+  const bannerPath = path.join(__dirname, "..", "img", "formularioprincipal.jpg");
   if (!fs.existsSync(bannerPath)) {
     console.warn("BANNER_NOT_FOUND:", bannerPath);
     return null;
@@ -34,14 +56,14 @@ async function getQrAsBase64(text) {
   return buffer.toString("base64");
 }
 
-  function capitalizeFullName(text = "") {
-    return text
-      .toLowerCase()
-      .split(" ")
-      .filter(Boolean)
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
-  }
+function capitalizeFullName(text = "") {
+  return text
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
 
 function getEventMeta(modalidad) {
   const isPresencial = Number(modalidad) === 1;
@@ -69,8 +91,7 @@ function getEventMeta(modalidad) {
   return { isPresencial, subject, evento, address, recomendaciones, nota };
 }
 
-function buildEmailHtml({ nombres, evento, address, recomendaciones, nota, isPresencial, qrDataUrl }) {
-
+function buildEmailHtml({ nombres, evento, address, recomendaciones, nota, isPresencial }) {
   const qrBlock = !isPresencial
     ? `
       <tr>
@@ -202,7 +223,6 @@ async function sendConfirmationEmail({ to, nombres, modalidad }) {
 
   const attachments = [];
 
-  // 1) Banner inline
   const bannerB64 = getBannerAsBase64();
   if (bannerB64) {
     attachments.push({
@@ -214,7 +234,6 @@ async function sendConfirmationEmail({ to, nombres, modalidad }) {
     });
   }
 
-  // 2) QR inline (solo virtual)
   if (!isPresencial) {
     const qrB64 = await getQrAsBase64(address);
     attachments.push({
@@ -229,251 +248,186 @@ async function sendConfirmationEmail({ to, nombres, modalidad }) {
   await sendEmail({ to, subject, html, attachments });
 }
 
-  export const postDatosBasicos = async (req, res) => {
-    try {
-      const nuevoDatosBasicos = new DatosBasicos(req.body);
+export const postDatosBasicos = async (req, res) => {
+  try {
+    const data = normalize(req.body);
 
-      const buscarNumeroIdentificacion = await DatosBasicos.findOne({
-        numeroidentificacion: nuevoDatosBasicos.numeroidentificacion,
-      });
-
-      const repsEmpresa = await DatosBasicos.countDocuments({ empresa: nuevoDatosBasicos.empresa });
-      if (repsEmpresa >= 2) {
-        return res.status(409).json({ msg: "Solo se permiten dos representantes por empresa" });
-      }
-
-      if (buscarNumeroIdentificacion) {
-        return res.status(409).json({
-          msg: `El número de identificación ${nuevoDatosBasicos.numeroidentificacion} ya se encuentra registrado.`,
-        });
-      }
-
-      if (Number(nuevoDatosBasicos.modalidad) === 1) {
-        const CUPOMAX = 120;
-        const presencial = await DatosBasicos.countDocuments({ modalidad: 1 });
-        if (presencial >= CUPOMAX) {
-          return res.status(409).json({ msg: "Cupo presencial agotado (120)." });
-        }
-      }
-
-      //Guardar SIEMPRE
-      const datobasicoCreado = await nuevoDatosBasicos.save();
-
-      //Intentar correo
-      let mailStatus = "sent";
-      let mailError = null;
-
-      try {
-        await sendConfirmationEmail({
-          to: nuevoDatosBasicos.correo,
-          nombres: nuevoDatosBasicos.nombres,
-          modalidad: nuevoDatosBasicos.modalidad,
-        });
-      } catch (e) {
-        mailStatus = "failed";
-        mailError = e.message;
-        console.error("MAIL_FAIL_POST:", e);
-      }
-
-      return res.status(201).json({
-        msg:
-          mailStatus === "sent"
-            ? "Registro guardado y correo enviado correctamente"
-            : "Registro guardado, pero falló el envío de correo",
-        datobasicoCreado,
-        mailStatus,
-        mailError,
-      });
-    } catch (error) {
-      console.error("POST_DATOSBASICOS_FAIL:", error);
-      return res.status(500).json({ error: error.message });
-    }
-  };
-
-
-  export const getDatosBasicos = async (req, res) => {
-    try {
-      const buscar = await DatosBasicos.find()
-        .populate("tipodocumento")
-        .populate("departamento")
-        .populate("ciudad")
-        .populate({ path: "empresa", populate: ["tipoidentificacion", "tamanoempresa"] });
-      return res.status(200).json(buscar);
-    } catch (error) {
-      res.status(500).json({ msg: "No se puede buscar la persona" });
-    }
-  }
-
-  export const getDatosBasicosId = async (req, res) => {
-    try {
-      const { id } = req.params;
-
-      const datos = await DatosBasicos.findById(id)
-        .populate("tipodocumento", "nombre codigo sigla")
-        .populate("departamento", "nombre departamento codigo")
-        .populate("ciudad", "nombre ciudad codigo departamento")
-        .populate({
-          path: "empresa",
-          populate: [
-            { path: "tipoidentificacion", select: "nombre codigo sigla" },
-            { path: "tamanoempresa", select: "nombre codigo" },
-          ],
-        })
-        .lean();
-
-      if (!datos) return res.status(404).json({ msg: `Sin coincidencias para ${id}` });
-      return res.json(datos);
-    } catch (error) {
-      return res.status(400).json({ error: error.message });
-    }
-  };
-
-  export const getDatosBasicosNumIdentificacion = async (req, res) => {
-    try {
-      const { numeroidentificacion } = req.params;
-
-      if (!numeroidentificacion) {
-        return res.status(400).json({
-          msg: 'El número de identificación es obligatorio'
-        });
-      }
-
-      const datos = await DatosBasicos.findOne({ numeroidentificacion })
-        .populate("tipodocumento", "nombre codigo sigla")
-        .populate("departamento", "nombre departamento codigo")
-        .populate("ciudad", "nombre ciudad codigo departamento")
-        .populate({
-          path: "empresa",
-          populate: [
-            { path: "tipoidentificacion", select: "nombre codigo sigla" },
-            { path: "tamanoempresa", select: "nombre codigo" },
-          ],
-        })
-        .lean();
-
-      if (!datos) return res.status(404).json({ msg: `Sin coincidencias para ${numeroidentificacion}` });
-
-      return res.json(datos);
-
-    } catch (error) {
-      return res.status(500).json({
-        error: error.message
+    const existeNit = await findDatosBasicosByNumeroIdentificacion(data.numeroidentificacion);
+    if (existeNit) {
+      return res.status(409).json({
+        msg: `El número de identificación ${data.numeroidentificacion} ya se encuentra registrado.`,
       });
     }
-  };
 
-  export const getDatosBasicosStats = async (req, res) => {
-    try {
+    const repsEmpresa = await countDatosBasicosByEmpresaId(data.empresaid);
+    if (repsEmpresa >= 2) {
+      return res.status(409).json({ msg: "Solo se permiten dos representantes por empresa" });
+    }
+
+    if (data.modalidad === 1) {
       const CUPOMAX = 120;
-
-      const [presencial, virtual] = await Promise.all([
-        DatosBasicos.countDocuments({ modalidad: 1 }),
-        DatosBasicos.countDocuments({ modalidad: 2 }),
-      ]);
-
-      const total = presencial + virtual;
-
-      return res.status(200).json({
-        cupoMaxPresencial: CUPOMAX,
-        presencialConfirmados: presencial,
-        virtualConfirmados: virtual,
-        totalConfirmados: total,
-        disponiblesPresencial: Math.max(0, CUPOMAX - presencial),
-        llenoPresencial: presencial >= CUPOMAX,
-        timestamp: Date.now(),
-      });
-    } catch (error) {
-      return res.status(500).json({ error: error.message });
+      const { presencial } = await getDatosBasicosStatsRepo();
+      if (presencial >= CUPOMAX) {
+        return res.status(409).json({ msg: "Cupo presencial agotado (120)." });
+      }
     }
-  };
 
-  export const putDatosBasicos = async (req, res) => {
+    const id = await createDatosBasicos(data);
+    const creado = await findDatosBasicosById(id);
+
+    let mailStatus = "sent";
+    let mailError = null;
+
     try {
-      const { id } = req.params;
-
-      const {
-        tipodocumento,
-        numeroidentificacion,
-        nombres,
-        primerapellido,
-        segundoapellido,
-        empresa,
-        celular,
-        correo,
-        departamento,
-        ciudad,
-        modalidad,
-      } = req.body;
-
-      const buscarIdentificacion = await DatosBasicos.findOne({ numeroidentificacion });
-      if (buscarIdentificacion && buscarIdentificacion._id.toString() !== id) {
-        return res.status(409).json({ msg: "Ya existe un usuario registrado con ese número de identificación" });
-      }
-
-      const actualizado = await DatosBasicos.findByIdAndUpdate(
-        id,
-        {
-          $set: {
-            tipodocumento,
-            numeroidentificacion,
-            nombres,
-            primerapellido,
-            segundoapellido: segundoapellido ?? "",
-            empresa,
-            celular,
-            correo,
-            departamento,
-            ciudad,
-            modalidad,
-          },
-        },
-        { new: true }
-      );
-
-      if (!actualizado) return res.status(404).json({ msg: "No encontrado" });
-
-      //correo también en edición
-      let mailStatus = "sent";
-      let mailError = null;
-
-      try {
-        await sendConfirmationEmail({
-          to: actualizado.correo,
-          nombres: actualizado.nombres,
-          modalidad: actualizado.modalidad,
-        });
-      } catch (e) {
-        mailStatus = "failed";
-        mailError = e.message;
-        console.error("MAIL_FAIL_PUT:", e);
-      }
-
-      return res.status(200).json({
-        msg:
-          mailStatus === "sent"
-            ? "Actualización guardada y correo enviado correctamente"
-            : "Actualización guardada, pero falló el envío de correo",
-        actualizado,
-        mailStatus,
-        mailError,
+      await sendConfirmationEmail({
+        to: data.correo,
+        nombres: data.nombres,
+        modalidad: data.modalidad,
       });
-    } catch (error) {
-      console.error("PUT_DATOSBASICOS_FAIL:", error);
-      return res.status(500).json({ error: error.message });
+    } catch (e) {
+      mailStatus = "failed";
+      mailError = e.message;
+      console.error("MAIL_FAIL_POST:", e);
     }
-  };
 
-  export const deleteDatosBasicos = async (req, res) => {
+    return res.status(201).json({
+      msg:
+        mailStatus === "sent"
+          ? "Registro guardado y correo enviado correctamente"
+          : "Registro guardado, pero falló el envío de correo",
+      datobasicoCreado: creado,
+      mailStatus,
+      mailError,
+    });
+  } catch (error) {
+    console.error("POST_DATOSBASICOS_FAIL:", error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+export const getDatosBasicos = async (req, res) => {
+  try {
+    const data = await findAllDatosBasicos();
+    return res.status(200).json(data);
+  } catch (error) {
+    return res.status(500).json({ msg: "No se puede buscar los datos básicos", error: error.message });
+  }
+};
+
+export const getDatosBasicosId = async (req, res) => {
+  try {
     const { id } = req.params;
-    const UsuarioEliminado = await DatosBasicos.findOneAndDelete({ _id: id });
 
-    if (UsuarioEliminado) {
-      return res.json({
-        msg: `Se eliminó el Usuario: ${id} de la base de datos`,
-      });
-    } else {
-      res
-        .status(400)
-        .json({ msg: `El Usuario: ${id} no se encuentra en la base de datos` });
+    const datos = await findDatosBasicosById(id);
+
+    if (!datos) return res.status(404).json({ msg: `Sin coincidencias para ${id}` });
+    return res.json(datos);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+};
+
+export const getDatosBasicosNumIdentificacion = async (req, res) => {
+  try {
+    const { numeroidentificacion } = req.params;
+
+    if (!numeroidentificacion) {
+      return res.status(400).json({ msg: "El número de identificación es obligatorio" });
     }
-  };
+
+    const datos = await findDatosBasicosByNumeroIdentificacion(numeroidentificacion);
+
+    if (!datos) return res.status(404).json({ msg: `Sin coincidencias para ${numeroidentificacion}` });
+    return res.json(datos);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+export const getDatosBasicosStats = async (req, res) => {
+  try {
+    const CUPOMAX = 120;
+
+    const { presencial, virtual } = await getDatosBasicosStatsRepo();
+
+    const total = presencial + virtual;
+
+    return res.status(200).json({
+      cupoMaxPresencial: CUPOMAX,
+      presencialConfirmados: presencial,
+      virtualConfirmados: virtual,
+      totalConfirmados: total,
+      disponiblesPresencial: Math.max(0, CUPOMAX - presencial),
+      llenoPresencial: presencial >= CUPOMAX,
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+export const putDatosBasicos = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const data = normalize(req.body);
+
+    const actual = await findDatosBasicosById(id);
+    if (!actual) return res.status(404).json({ msg: "No encontrado" });
+
+    const existeNit = await findDatosBasicosByNumeroIdentificacion(data.numeroidentificacion);
+    if (existeNit && Number(existeNit.DATOSBASICOSID) !== Number(id)) {
+      return res.status(409).json({
+        msg: "Ya existe un usuario registrado con ese número de identificación",
+      });
+    }
+
+    const updated = await updateDatosBasicos(id, data);
+    if (!updated) return res.status(404).json({ msg: "No encontrado" });
+
+    const actualizado = await findDatosBasicosById(id);
+
+    let mailStatus = "sent";
+    let mailError = null;
+
+    try {
+      await sendConfirmationEmail({
+        to: data.correo,
+        nombres: data.nombres,
+        modalidad: data.modalidad,
+      });
+    } catch (e) {
+      mailStatus = "failed";
+      mailError = e.message;
+      console.error("MAIL_FAIL_PUT:", e);
+    }
+
+    return res.status(200).json({
+      msg:
+        mailStatus === "sent"
+          ? "Actualización guardada y correo enviado correctamente"
+          : "Actualización guardada, pero falló el envío de correo",
+      actualizado,
+      mailStatus,
+      mailError,
+    });
+  } catch (error) {
+    console.error("PUT_DATOSBASICOS_FAIL:", error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+export const deleteDatosBasicos = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const deleted = await deleteDatosBasicosRepo(id);
+
+    if (!deleted) {
+      return res.status(400).json({ msg: `El Usuario: ${id} no se encuentra en la base de datos` });
+    }
+
+    return res.json({ msg: `Se eliminó el Usuario: ${id} de la base de datos` });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+};

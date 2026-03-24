@@ -1,93 +1,114 @@
-import Empresa from "../models/empresa.js";
+import {
+  createManyEmpresa,
+  createEmpresa,
+  deleteEmpresa as deleteEmpresaRepo,
+  findAllEmpresa,
+  findEmpresaById,
+  findEmpresaByNumeroIdentificacion,
+  updateEmpresa,
+} from "../repositories/empresa.js";
 
-const normalizeEmpresa = (e) => ({
-  ...e,
+const normalize = (e) => ({
+  tipodocumentoid: Number(e.tipodocumentoid),
   numeroidentificacion: String(e.numeroidentificacion ?? "").trim().replace(/\D+/g, ""),
-  dv: String(e.dv ?? "").trim().replace(/\D+/g, "").slice(0, 1),
+  dv: String(e.dv ?? "").trim().replace(/\D+/g, "").slice(0, 5),
   empresa: String(e.empresa ?? "").trim().toLowerCase(),
+  tamanoempresaid: Number(e.tamanoempresaid),
 });
+
+const isUniqueConstraintError = (error) => {
+  return error?.errorNum === 1 || error?.code === "ORA-00001";
+};
 
 export const postEmpresa = async (req, res) => {
   try {
     const payload = req.body;
 
-    // masivo
+    // MASIVO
     if (Array.isArray(payload)) {
-      const normalized = payload.map(normalizeEmpresa);
+      const normalized = payload.map(normalize);
 
       const numeros = normalized.map((x) => x.numeroidentificacion);
 
-      // duplicados dentro del envío
       if (new Set(numeros).size !== numeros.length) {
-        return res.status(400).json({ msg: "Hay números de identificación duplicados dentro del envío." });
-      }
-
-      // duplicados contra BD
-      const existentes = await Empresa.find(
-        { numeroidentificacion: { $in: numeros } },
-        { numeroidentificacion: 1 }
-      ).lean();
-
-      if (existentes.length > 0) {
-        return res.status(409).json({
-          msg: "Algunos números ya existen en la base de datos.",
-          numerosidentificacionDuplicados: existentes.map((a) => a.numeroidentificacion),
+        return res.status(400).json({
+          msg: "Hay números de identificación duplicados dentro del envío.",
         });
       }
 
-      const insertados = await Empresa.insertMany(normalized, { ordered: false });
+      const total = await createManyEmpresa(normalized);
 
       return res.status(201).json({
         msg: "Empresas insertadas correctamente",
-        total: insertados.length,
+        total,
       });
     }
 
-  //  indivudual
-    const doc = normalizeEmpresa(payload);
+    // INDIVIDUAL
+    const data = normalize(payload);
 
-    const existe = await Empresa.findOne({ numeroidentificacion: doc.numeroidentificacion }).lean();
+    const existe = await findEmpresaByNumeroIdentificacion(data.numeroidentificacion);
+
     if (existe) {
-      return res.status(409).json({ msg: "El número de identificación ya se encuentra registrado." });
+      return res.status(409).json({
+        msg: "El número de identificación ya se encuentra registrado.",
+      });
     }
 
-    const creado = await Empresa.create(doc);
-    return res.status(201).json(creado);
+    const id = await createEmpresa(data);
+    const creada = await findEmpresaById(id);
+
+    return res.status(201).json(creada);
   } catch (error) {
-    // Por si pega el índice unique
-    if (error?.code === 11000) {
-      return res.status(409).json({ msg: "Número de identificación duplicado.", error: error.message });
+    console.error("postEmpresa:", error);
+
+    if (isUniqueConstraintError(error)) {
+      return res.status(409).json({
+        msg: "Número de identificación duplicado.",
+        error: error.message,
+      });
     }
-    return res.status(500).json({ msg: "Error interno del servidor", error: error.message });
+
+    return res.status(500).json({
+      msg: "Error interno del servidor",
+      error: error.message,
+    });
   }
 };
 
 export const getEmpresa = async (req, res) => {
   try {
-    const lista = await Empresa.find()
-      .populate("tipoidentificacion", "nombre codigo sigla")
-      .populate("tamanoempresa", "nombre codigo")
-      .lean();
+    const data = await findAllEmpresa();
 
-    return res.json({ data: lista });
+    return res.json({ data });
   } catch (error) {
-    return res.status(500).json({ msg: "No se puede buscar Empresa", error: error.message });
+    console.error("getEmpresa:", error);
+
+    return res.status(500).json({
+      msg: "No se puede buscar Empresa",
+      error: error.message,
+    });
   }
 };
 
 export const getEmpresaId = async (req, res) => {
   try {
     const { id } = req.params;
+    const item = await findEmpresaById(id);
 
-    const empresa = await Empresa.findById(id)
-      .populate("tipoidentificacion", "nombre codigo sigla")
-      .populate("tamanoempresa", "nombre codigo")
-      .lean();
+    if (!item) {
+      return res.status(404).json({
+        msg: `Sin coincidencias para ${id}`,
+      });
+    }
 
-    if (!empresa) return res.status(404).json({ msg: `Sin coincidencias para ${id}` });
-    return res.json(empresa);
+    return res.json(item);
   } catch (error) {
-    return res.status(400).json({ error: error.message });
+    console.error("getEmpresaId:", error);
+
+    return res.status(400).json({
+      error: error.message,
+    });
   }
 };
 
@@ -95,73 +116,100 @@ export const getEmpresaNumIdentificacion = async (req, res) => {
   try {
     const raw = req.params?.numeroidentificacion;
 
-    const nit = String(raw ?? "")
-      .trim()
-      .replace(/\D+/g, ""); // SOLO dígitos
+    const nit = String(raw ?? "").trim().replace(/\D+/g, "");
 
     if (!nit) {
-      return res.status(400).json({ msg: "El número de identificación es obligatorio" });
+      return res.status(400).json({
+        msg: "El número de identificación es obligatorio",
+      });
     }
 
-    const empresa = await Empresa.findOne({ numeroidentificacion: nit })
-      .populate("tipoidentificacion")
-      .populate("tamanoempresa")
-      .lean();
+    const item = await findEmpresaByNumeroIdentificacion(nit);
 
-    if (!empresa) {
-      return res.status(404).json({ msg: `Sin coincidencias para ${nit}` });
+    if (!item) {
+      return res.status(404).json({
+        msg: `Sin coincidencias para ${nit}`,
+      });
     }
 
-    return res.status(200).json(empresa);
+    return res.status(200).json(item);
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    console.error("getEmpresaNumIdentificacion:", error);
+
+    return res.status(500).json({
+      error: error.message,
+    });
   }
 };
 
 export const putEmpresa = async (req, res) => {
   try {
     const { id } = req.params;
-    const body = normalizeEmpresa(req.body);
+    const data = normalize(req.body);
 
-    // si quieren cambiar el numeroidentificacion, validar duplicado
-    const existe = await Empresa.findOne({ numeroidentificacion: body.numeroidentificacion }).lean();
-    if (existe && String(existe._id) !== String(id)) {
-      return res.status(409).json({ msg: "El número de identificación ya está registrado en otra empresa." });
+    const actual = await findEmpresaById(id);
+
+    if (!actual) {
+      return res.status(404).json({
+        msg: "Empresa no encontrada",
+      });
     }
 
-    const updated = await Empresa.findByIdAndUpdate(
-      id,
-      {
-        $set: {
-          tipoidentificacion: body.tipoidentificacion,
-          numeroidentificacion: body.numeroidentificacion,
-          dv: body.dv,
-          empresa: body.empresa,
-          tamanoempresa: body.tamanoempresa,
-        },
-      },
-      { new: true }
-    );
+    const existe = await findEmpresaByNumeroIdentificacion(data.numeroidentificacion);
 
-    if (!updated) return res.status(404).json({ msg: "Empresa no encontrada" });
-    return res.status(200).json(updated);
+    if (existe && Number(existe.EMPRESAID) !== Number(id)) {
+      return res.status(409).json({
+        msg: "El número de identificación ya está registrado en otra empresa.",
+      });
+    }
+
+    const updated = await updateEmpresa(id, data);
+
+    if (!updated) {
+      return res.status(404).json({
+        msg: "Empresa no encontrada",
+      });
+    }
+
+    const actualizada = await findEmpresaById(id);
+
+    return res.json(actualizada);
   } catch (error) {
-    if (error?.code === 11000) {
-      return res.status(409).json({ msg: "Número de identificación duplicado.", error: error.message });
+    console.error("putEmpresa:", error);
+
+    if (isUniqueConstraintError(error)) {
+      return res.status(409).json({
+        msg: "Número de identificación duplicado.",
+        error: error.message,
+      });
     }
-    return res.status(500).json({ error: error.message });
+
+    return res.status(500).json({
+      error: error.message,
+    });
   }
 };
 
 export const deleteEmpresa = async (req, res) => {
   try {
     const { id } = req.params;
-    const eliminado = await Empresa.findByIdAndDelete(id);
-    if (!eliminado) {
-      return res.status(404).json({ msg: `Empresa con id ${id} no existe` });
+
+    const deleted = await deleteEmpresaRepo(id);
+
+    if (!deleted) {
+      return res.status(404).json({
+        msg: `No existe el id: ${id}`,
+      });
     }
-    return res.json({ msg: `Se eliminó la empresa con id: ${id}` });
+
+    return res.json({
+      msg: `Se eliminó la empresa con id: ${id}`,
+    });
   } catch (error) {
-    return res.status(400).json({ error: error.message });
+    console.error("deleteEmpresa:", error);
+
+    return res.status(400).json({
+      error: error.message,
+    });
   }
 };

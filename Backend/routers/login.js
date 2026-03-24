@@ -1,37 +1,49 @@
-import {validarCampos} from "../valichecks/validar-campos.js"
-import {check} from "express-validator"
-import { Router } from "express"
-
-const router= Router()
+import { Router } from "express";
+import { body } from "express-validator";
+import { validarCampos } from "../valichecks/validar-campos.js";
 
 import {
-    postLogin,
-    postLoginToken,
-    putLogin,
-    patchEstado,
-    deleteLogin
-} from '../controllers/login.js'
+  deleteLogin,
+  patchEstado,
+  postLogin,
+  postLoginToken,
+  putLogin,
+} from "../controllers/login.js";
 
-router.post("/",[
-    check("email","Complete el Campo Email").trim().not().isEmpty().isEmail(),
-    check("password", "Complete el campo Contraseña").trim().not().isEmpty(),
-    validarCampos
-],postLogin)
+const router = Router();
 
-router.post("/token",[
-    check("email","Falta el Usuario").trim().not().isEmpty(),
-    check("password", "Falta la contraseña").trim().not().isEmpty(),
-    validarCampos
-],postLoginToken)
+router.post(
+  "/",
+  [
+    body("email", "Complete el Campo Email").trim().notEmpty().isEmail(),
+    body("password", "Complete el campo Contraseña").trim().notEmpty(),
+    validarCampos,
+  ],
+  postLogin
+);
 
-router.post('/:id',[
-    check("email","Complete el Campo Email").trim().not().isEmpty().isEmail(),
-    check("password", "Complete el campo Contraseña").trim().not().isEmpty(),
-    validarCampos
-],putLogin)
+router.post(
+  "/token",
+  [
+    body("email", "Falta el Usuario").trim().notEmpty(),
+    body("password", "Falta la contraseña").trim().notEmpty(),
+    validarCampos,
+  ],
+  postLoginToken
+);
 
-router.patch('/:id',patchEstado)
+router.put(
+  "/:id",
+  [
+    body("email", "Complete el Campo Email").trim().notEmpty().isEmail(),
+    body("password", "Complete el campo Contraseña").trim().notEmpty(),
+    validarCampos,
+  ],
+  putLogin
+);
 
-router.delete('/:id', deleteLogin);
+router.patch("/:id", patchEstado);
+
+router.delete("/:id", deleteLogin);
 
 export default router;

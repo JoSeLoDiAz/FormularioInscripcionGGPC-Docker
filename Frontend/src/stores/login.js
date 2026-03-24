@@ -6,6 +6,7 @@ import { direccion } from "../routes/direccion.js";
 export const useLoginStore = defineStore("Login", () => {
 
     const token = ref('');
+    const usuario = ref(null);
     let loading = ref(false);
 
     const inicio = async (email, password) => {
@@ -16,7 +17,8 @@ export const useLoginStore = defineStore("Login", () => {
           password: password,
         });
         token.value = datos.data.token;
-        return datos;
+        usuario.value = datos.data.buscar;
+        return datos.data;
       } catch (error) {
         loading.value = true;
         throw error;
@@ -28,6 +30,8 @@ export const useLoginStore = defineStore("Login", () => {
 return {
       inicio,
       token,
+      usuario,
+      loading,
     };
 },
     {

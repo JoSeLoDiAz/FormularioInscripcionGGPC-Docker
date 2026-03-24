@@ -21,7 +21,7 @@ let cargando=ref(false)
   const buscarEmpresaId = async (id) => {
     try {
       cargando.value = true;
-      const response = await axios.get(`${direccion}/empresa/id/${id}`);
+      const response = await axios.get(`${direccion}/empresa/${id}`);
       return response.data;
     } finally {
       cargando.value = false;

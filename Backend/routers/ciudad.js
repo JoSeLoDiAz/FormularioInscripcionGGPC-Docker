@@ -1,47 +1,62 @@
-import {validarCampos} from "../valichecks/validar-campos.js"
-import {check} from "express-validator"
-import { Router } from "express"
+import { Router } from "express";
+import { body } from "express-validator";
+import { validarCampos } from "../valichecks/validar-campos.js";
 
-
-const router = Router()
-
-import{
-    postCiudad,
-    getCiudad,
-    getCiudadId,
-    putCiudad,
-    deleteCiudad
+import {
+  deleteCiudad,
+  getCiudad,
+  getCiudadId,
+  postCiudad,
+  putCiudad,
 } from "../controllers/ciudad.js";
 
+const router = Router();
+
+const reglasObj = [
+  body("nombre", "Ingrese el nombre de la Ciudad")
+    .trim()
+    .notEmpty(),
+
+  body("departamentoid", "Ingrese un DEPARTAMENTOID válido")
+    .notEmpty()
+    .isNumeric(),
+];
+
+const reglasArr = [
+  body("*.nombre", "Ingrese el nombre de la Ciudad")
+    .trim()
+    .notEmpty(),
+
+  body("*.departamentoid", "Ingrese un DEPARTAMENTOID válido")
+    .notEmpty()
+    .isNumeric(),
+];
+
 router.post(
-   "/",
-   [
-      // array
-      check("*.codigo", "Ingrese el codigo de la Ciudad").optional().notEmpty().isNumeric(),
-      check("*.ciudad", "Ingrese el Nombre de la Ciudad").optional().trim().notEmpty().toLowerCase(),
-      check("*.departamento", "Departamento inválido").optional().isMongoId(),
-
-      // objeto
-      check("codigo", "Ingrese el codigo de la Ciudad").optional().notEmpty().isNumeric(),
-      check("ciudad", "Ingrese el Nombre de la Ciudad").optional().trim().notEmpty().toLowerCase(),
-      check("departamento", "Departamento inválido").optional().isMongoId(),
-
-      validarCampos
-   ],
-   postCiudad
+  "/",
+  async (req, res, next) => {
+    try {
+      const rules = Array.isArray(req.body) ? reglasArr : reglasObj;
+      await Promise.all(rules.map((r) => r.run(req)));
+      next();
+    } catch (error) {
+      next(error);
+    }
+  },
+  validarCampos,
+  postCiudad
 );
 
+router.get("/", getCiudad);
+router.get("/:id", getCiudadId);
 
-router.get('/', getCiudad);
+router.put(
+  "/:id",
+  reglasObj,
+  validarCampos,
+  putCiudad
+);
 
-router.get('/id/:id',getCiudadId);
-
-router.put('/:id',[
-   check("codigo","Ingrese el  codigo de la Ciudad").trim().not().isEmpty().toLowerCase(),
-   check("ciudad","Ingrese el Nombre de la Ciudad").trim().not().isEmpty().toLowerCase(),
-   check("departamento","Departamento Invalido").trim().isMongoId(),validarCampos
-], putCiudad);
-
-router.delete('/:id', deleteCiudad);
+router.delete("/:id", deleteCiudad);
 
 export default router;

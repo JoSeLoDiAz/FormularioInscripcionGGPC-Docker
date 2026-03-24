@@ -92,6 +92,7 @@
       </div>
     </div>
 
+    <ToastBetowa :show="toast.show" :title="toast.title" :message="toast.message" type="success" :duration="2000" @closed="toast.show = false" />
   </div>
 </template>
 
@@ -99,17 +100,19 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLoginStore } from '../stores/login.js'
+import ToastBetowa from './ToastBetowa.vue'
 
 const useLogin = useLoginStore()
 const router   = useRouter()
 
-const form = reactive({
-  email: '',
-  password: ''
-})
+const form = reactive({ email: '', password: '' })
 
 const showPassword = ref(false)
 const errorMsg     = ref('')
+
+const capitalize = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : ''
+
+const toast = reactive({ show: false, title: '', message: '' })
 
 async function handleLogin() {
   errorMsg.value = ''
@@ -119,19 +122,27 @@ async function handleLogin() {
     return
   }
 
-  await useLogin.inicio(form.email, form.password)
-    .then(() => {
-      router.push('/usuario')
-    })
-    .catch((error) => {
-      if (error.response?.data?.errors) {
-        errorMsg.value = error.response.data.errors[0].msg
-      } else if (error.response?.data?.msg) {
-        errorMsg.value = error.response.data.msg
-      } else {
-        errorMsg.value = 'No se pudo conectar con el servidor.'
-      }
-    })
+  try {
+    const data = await useLogin.inicio(form.email, form.password)
+    const buscar = data?.buscar
+    const nombre = buscar?.NOMBRES && buscar?.PRIMERAPELLIDO
+      ? `${capitalize(buscar.NOMBRES)} ${capitalize(buscar.PRIMERAPELLIDO)}`
+      : buscar?.EMAIL || form.email
+
+    toast.title   = '¡Bienvenido/a!'
+    toast.message = nombre
+    toast.show    = true
+
+    setTimeout(() => router.push('/usuario'), 1800)
+  } catch (error) {
+    if (error.response?.data?.errors) {
+      errorMsg.value = error.response.data.errors[0].msg
+    } else if (error.response?.data?.msg) {
+      errorMsg.value = error.response.data.msg
+    } else {
+      errorMsg.value = 'No se pudo conectar con el servidor.'
+    }
+  }
 }
 </script>
 

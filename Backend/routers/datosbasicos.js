@@ -1,56 +1,65 @@
 import { Router } from "express";
-import { check } from "express-validator";
+import { body } from "express-validator";
 import { validarCampos } from "../valichecks/validar-campos.js";
 
-
-const router = Router()
-
 import {
-   deleteDatosBasicos,
-   getDatosBasicos,
-   getDatosBasicosId,
-   getDatosBasicosNumIdentificacion,
-   getDatosBasicosStats,
-   postDatosBasicos,
-   putDatosBasicos
+  deleteDatosBasicos,
+  getDatosBasicos,
+  getDatosBasicosId,
+  getDatosBasicosNumIdentificacion,
+  getDatosBasicosStats,
+  postDatosBasicos,
+  putDatosBasicos,
 } from "../controllers/datosbasicos.js";
 
-router.post("/",[
-   check("tipodocumento","Tipo Documento Invalido").trim().isMongoId(),
-   check("numeroidentificacion","complete el campo Número de Identificación").trim().not().isEmpty().toLowerCase(),
-   check("nombres","Complete el campo Nombres").trim().not().isEmpty().toLowerCase(),
-   check("primerapellido", "Complete el campo Primer Apellido").trim().not().isEmpty().toLowerCase(),
-   check("segundoapellido").optional().trim().toLowerCase(),
-   check("empresa", "Empresa inválida").isMongoId(),
-   check("celular","Complete el campo Celular").trim().not().isEmpty().toLowerCase(),
-   check("correo","Complete el campo Correo Electronico").trim().not().isEmpty().toLowerCase(),
-   check("departamento","Departamento Invalido").trim().isMongoId(),
-   check("ciudad","Ciudad Invalida").trim().isMongoId(),
-   check("modalidad","Por favor seleccione la modalidad").trim().not().isEmpty(), validarCampos
-],postDatosBasicos)
+const router = Router();
 
-router.get('/', getDatosBasicos);
+const reglas = [
+  body("tipodocumentoid", "Tipo Documento inválido").notEmpty().isNumeric(),
 
-router.get('/id/:id',getDatosBasicosId);
+  body("numeroidentificacion", "Complete el campo Número de Identificación")
+    .trim()
+    .notEmpty(),
 
-router.get('/stats', getDatosBasicosStats);
+  body("nombres", "Complete el campo Nombres")
+    .trim()
+    .notEmpty(),
 
-router.get('/:numeroidentificacion', getDatosBasicosNumIdentificacion);
+  body("primerapellido", "Complete el campo Primer Apellido")
+    .trim()
+    .notEmpty(),
 
-router.put('/:id',[
-   check("tipodocumento","Tipo Documento Invalido").trim().isMongoId(),
-   check("numeroidentificacion","complete el campo Número de Identificación").trim().not().isEmpty().toLowerCase(),
-   check("nombres","Complete el campo Nombres").trim().not().isEmpty().toLowerCase(),
-   check("primerapellido", "Complete el campo Primer Apellido").trim().not().isEmpty().toLowerCase(),
-   check("segundoapellido").optional().trim().toLowerCase(),
-   check("empresa", "Empresa inválida").isMongoId(),
-   check("celular","Complete el campo Celular").trim().not().isEmpty().toLowerCase(),
-   check("correo","Complete el campo Correo Electronico").trim().not().isEmpty().toLowerCase(),
-   check("departamento","Departamento Invalido").trim().isMongoId(),
-   check("ciudad","Ciudad Invalida").trim().isMongoId(), validarCampos,
-   check("modalidad","Por favor seleccione la modalidad").trim().not().isEmpty(), validarCampos
-], putDatosBasicos)
+  body("segundoapellido").optional({ nullable: true }).trim(),
 
-router.delete('/:id', deleteDatosBasicos);
+  body("empresaid", "Empresa inválida").notEmpty().isNumeric(),
+
+  body("celular", "Complete el campo Celular")
+    .trim()
+    .notEmpty(),
+
+  body("correo", "Complete el campo Correo Electrónico")
+    .trim()
+    .notEmpty()
+    .isEmail(),
+
+  body("departamentoid", "Departamento inválido").notEmpty().isNumeric(),
+
+  body("ciudadid", "Ciudad inválida").notEmpty().isNumeric(),
+
+  body("modalidad", "Por favor seleccione la modalidad")
+    .notEmpty()
+    .isIn([1, 2, "1", "2"]),
+];
+
+router.post("/", reglas, validarCampos, postDatosBasicos);
+
+router.get("/", getDatosBasicos);
+router.get("/stats", getDatosBasicosStats);
+router.get("/nit/:numeroidentificacion", getDatosBasicosNumIdentificacion);
+router.get("/:id", getDatosBasicosId);
+
+router.put("/:id", reglas, validarCampos, putDatosBasicos);
+
+router.delete("/:id", deleteDatosBasicos);
 
 export default router;
