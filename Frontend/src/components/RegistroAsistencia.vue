@@ -426,7 +426,7 @@
       </div>
     </div>
     <!-- TOAST -->
-    <ToastBetowa v-model:show="toast.show" :title="toast.title" :message="toast.message" :type="toast.type" />
+    <ToastBetowa :show="toast.show" :title="toast.title" :message="toast.message" :type="toast.type" @closed="toast.show = false" />
 
     <!-- MODAL CONFIRMACIÓN -->
     <div v-if="confirmModal" class="confirm-backdrop" @click.self="confirmModal = false">
